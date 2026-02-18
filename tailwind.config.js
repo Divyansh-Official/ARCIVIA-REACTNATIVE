@@ -33,18 +33,40 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // light: {
-        //   primary01: "#7469dd",
-        //   primary02: "#9e98e0",
+        light: {
+          primary01: "#ff8a69",
+          primary02: "#ffb19e",
 
-        //   secondary01: "#333645",
-        //   secondary02: "#8b6d89",
+          secondary01: "#f0e1dd",
+          secondary02: "#cfaea7",
 
-        //   background: "#1c202b",
-        //   shadow: "#000000",
-        //   text01: "#ffffff",
-        //   text02: "#bababa",
-        // },
+          background: "#fff8f5",
+
+          shadow: "#d3d3d3",
+
+          icons01: "#333645",
+          icons02: "#8b6d89",
+
+          text01: "#333645",
+          text02: "#8b6d89",
+        },
+        eclipse: {
+          primary01: "#9e98e0",
+          primary02: "#b3afff",
+
+          secondary01: "#d1cfff",
+          secondary02: "#a89ff5",
+
+          background: "#e8e6ff",
+
+          shadow: "#b3afff",
+
+          icons01: "#333645",
+          icons02: "#8b6d89",
+
+          text01: "#333645",
+          text02: "#8b6d89",
+        },
         dark: {
           primary01: "#7469dd",
           primary02: "#9e98e0",

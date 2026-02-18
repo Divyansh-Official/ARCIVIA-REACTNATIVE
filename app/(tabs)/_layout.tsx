@@ -185,27 +185,12 @@ const LiquidGlassTabBar = ({ state, descriptors, navigation }: any) => {
 const _layout = () => {
   return (
     <Tabs
-      initialRouteName="index"
+      initialRouteName="explore"
       tabBar={(props) => <LiquidGlassTabBar {...props} />}
       screenOptions={{
         headerShown: false,
       }}
     >
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: "EXPLORE",
-          tabBarIcon: ({ focused, tintColor }) => (
-            <TabIcon
-              focused={focused}
-              tintColor={tintColor}
-              iconUnselected={require("../../assets/bottom_navigation_icons/explore_unselected_icon01.png")}
-              iconSelected={require("../../assets/bottom_navigation_icons/explore_selected_icon01.png")}
-            />
-          ),
-        }}
-      />
-
       <Tabs.Screen
         name="index"
         options={{
@@ -216,6 +201,21 @@ const _layout = () => {
               tintColor={tintColor}
               iconUnselected={require("../../assets/bottom_navigation_icons/camera_unselected_icon01.png")}
               iconSelected={require("../../assets/bottom_navigation_icons/camera_selected_icon01.png")}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: "EXPLORE",
+          tabBarIcon: ({ focused, tintColor }) => (
+            <TabIcon
+              focused={focused}
+              tintColor={tintColor}
+              iconUnselected={require("../../assets/bottom_navigation_icons/explore_unselected_icon01.png")}
+              iconSelected={require("../../assets/bottom_navigation_icons/explore_selected_icon01.png")}
             />
           ),
         }}
