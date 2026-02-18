@@ -1,43 +1,30 @@
-// /** @type {import('tailwindcss').Config} */
+/** @type {import('tailwindcss').Config} */
 
-// const themes = ["champagnePink", "dark", "metallicGray", "bloodyMoon", "sunset"];
-// const tokens = [
-//   "primary01",
-//   "primary02",
-//   "primary03",
+const themes = ["light", "dark"];
+const tokens = [
+  "primary01",
+  "primary02",
 
-//   "secondary01",
-//   "secondary02",
-//   "secondary03",
-//   "secondary04",
+  "secondary01",
+  "secondary02",
 
-//   "background01",
-//   "background02",
-//   "background03",
+  "background",
 
-//   "surface01",
-//   "surface02",
+  "shadow",
 
-//   "text01",
-//   "text02",
-//   "text03",
+  "icons01",
+  "icons02",
 
-//   "icon01",
-//   "icon02",
+  "text01",
+  "text02",
+];
+const utilities = ["bg", "text", "border", "ring", "placeholder", "accent"];
 
-//   "navigationIcon01",
-//   "navigationBG01",
-
-//   "shadow01",
-//   "shadow02",
-// ];
-// const utilities = ["bg", "text", "border", "ring", "placeholder", "accent"];
-
-// const safelist = themes.flatMap((theme) =>
-//   tokens.flatMap((token) =>
-//     utilities.map((util) => `${util}-${theme}-${token}`),
-//   ),
-// );
+const safelist = themes.flatMap((theme) =>
+  tokens.flatMap((token) =>
+    utilities.map((util) => `${util}-${theme}-${token}`),
+  ),
+);
 
 module.exports = {
   content: ["./app/**/*.{js,jsx,ts,tsx}", "./components/**/*.{js,jsx,ts,tsx}"],
@@ -45,125 +32,37 @@ module.exports = {
   //   safelist,
   theme: {
     extend: {
+      colors: {
+        // light: {
+        //   primary01: "#7469dd",
+        //   primary02: "#9e98e0",
 
-      //   colors: {
-      //     champagnePink: {
-      //       primary01: "#f3dbce",
-      //       primary02: "#ffffff",
-      //       primary03: "#ece5e3",
-      //       secondary01: "#cd9483",
-      //       secondary02: "#a57161",
-      //       secondary03: "#69443a",
-      //       secondary04: "#4c2b21",
-      //       background01: "#ffffff",
-      //       background02: "#ffffff",
-      //       background03: "#ffffff",
-      //       surface01: "#ffffff",
-      //       surface02: "#f3dbce",
-      //       text01: "#4c2b21",
-      //       text02: "#000000",
-      //       text03: "#bababa",
-      //       icon01: "#4c2b21",
-      //       icon02: "#ffffff",
-      //       navigationIcon01: "#4c2b21",
-      //       navigationBG01: "#f3dbce",
-      //       shadow01: "#ffffff",
-      //       shadow02: "#bababa",
-      //     },
-      //     dark: {
-      //       primary01: "#55b4e3",
-      //       primary02: "#006494",
-      //       primary03: "#ffffff",
-      //       secondary01: "#638ECB",
-      //       secondary02: "#B1C9EF",
-      //       secondary03: "#395886",
-      //       secondary04: "#bababa",
-      //       background01: "#ffffff",
-      //       background02: "#1e1e1e",
-      //       background03: "#121212",
-      //       surface01: "#ffffff",
-      //       surface02: "#55b4e3",
-      //       text01: "#006494",
-      //       text02: "#ffffff",
-      //       text03: "#bababa",
-      //       icon01: "#ffffff",
-      //       icon02: "#000000",
-      //       navigationIcon01: "#ffffff",
-      //       navigationBG01: "#006494",
-      //       shadow01: "#000000",
-      //       shadow02: "#bababa",
-      //     },
-      //     metallicGray: {
-      //       primary01: "#9ca3af",
-      //       primary02: "#6b7280",
-      //       primary03: "#4b5563",
-      //       secondary01: "#71717a",
-      //       secondary02: "#a1a1aa",
-      //       secondary03: "#d4d4d8",
-      //       secondary04: "#e4e4e7",
-      //       background01: "#020617",
-      //       background02: "#0f172a",
-      //       background03: "#1e293b",
-      //       surface01: "#ffffff",
-      //       surface02: "#18181b",
-      //       text01: "#e4e4e7",
-      //       text02: "#d4d4d8",
-      //       text03: "#a1a1aa",
-      //       icon01: "#d4d4d8",
-      //       icon02: "#18181b",
-      //       navigationIcon01: "#d4d4d8",
-      //       navigationBG01: "#18181b",
-      //       shadow01: "#000000",
-      //       shadow02: "#bababa",
-      //     },
-      //     bloodyMoon: {
-      //       primary01: "#2b2b2d",
-      //       primary02: "#fa7e8d",
-      //       primary03: "#CB1228",
-      //       secondary01: "#CB1228",
-      //       secondary02: "#CB1228",
-      //       secondary03: "#CB1228",
-      //       secondary04: "#CB1228",
-      //       background01: "#000000",
-      //       background02: "#220205",
-      //       background03: "#110102",
-      //       surface01: "#ffffff",
-      //       surface02: "#ffffff",
-      //       text01: "#dc282f",
-      //       text02: "#ffffff",
-      //       text03: "#bababa",
-      //       icon01: "#dc282f",
-      //       icon02: "#98989a",
-      //       navigationIcon01: "#000000",
-      //       navigationBG01: "#ffffff",
-      //       shadow01: "#ffffff",
-      //       shadow02: "#bababa",
-      //     },
-      //     sunset: {
-      //       primary01: "#f05a28",
-      //       primary02: "#d84315",
-      //       primary03: "#a32f0b",
-      //       secondary01: "#e8733a",
-      //       secondary02: "#f0a050",
-      //       secondary03: "#f5c87a",
-      //       secondary04: "#fde8b0",
-      //       background01: "#1a0a00",
-      //       background02: "#2e1300",
-      //       background03: "#3d1a0a",
-      //       surface01: "#3d1a0a",
-      //       surface02: "#2e1300",
-      //       text01: "#fde8b0",
-      //       text02: "#fde8b0",
-      //       text03: "#bababa",
-      //       icon01: "#fde8b0",
-      //       icon02: "#000000",
-      //       navigationIcon01: "#fde8b0",
-      //       navigationBG01: "#2e1300",
-      //       shadow01: "#000000",
-      //       shadow02: "#bababa",
-      //     },
-      //   },
-      
+        //   secondary01: "#333645",
+        //   secondary02: "#8b6d89",
+
+        //   background: "#1c202b",
+        //   shadow: "#000000",
+        //   text01: "#ffffff",
+        //   text02: "#bababa",
+        // },
+        dark: {
+          primary01: "#7469dd",
+          primary02: "#9e98e0",
+
+          secondary01: "#333645",
+          secondary02: "#8b6d89",
+
+          background: "#1c202b",
+
+          shadow: "#000000",
+
+          icons01: "#ffffff",
+          icons02: "#bababa",
+
+          text01: "#ffffff",
+          text02: "#bababa",
+        },
+      },
     },
   },
   plugins: [],
