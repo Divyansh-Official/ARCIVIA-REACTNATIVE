@@ -1,12 +1,12 @@
 import { View, Text } from 'react-native'
 import React from 'react'
 
-const register = () => {
+const favorites = () => {
   return (
     <View>
-      <Text>register</Text>
+      <Text>favorite</Text>
     </View>
   )
 }
 
-export default register
+export default favorites

@@ -1,54 +1,45 @@
+import { useFetchExplore } from "@/hooks/useFetchExplore";
+import { getAccentColor, getExploreGradient } from "@/theme/gradients";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  ListRenderItemInfo,
   RefreshControl,
   StyleSheet,
   Text,
-  View,
+  View
 } from "react-native";
-
-// Theme
-
-// Components
 import CategoryTabs from "../components/explore/CategoryTabs";
 import ExploreHeader from "../components/explore/ExploreHeader";
-import FeaturedCard from "../components/explore/FeaturedCard";
+import FeaturedCard, { HeritageItem } from "../components/explore/FeaturedCard";
 import FilterBottomSheet, {
   FilterState,
 } from "../components/explore/FilterBottomSheet";
 import GridSection from "../components/explore/GridSection";
 import TrendingRow from "../components/explore/TrendingRow";
+import { useTheme } from "../context/ThemeContext";
+import { router } from "expo-router";
 
-// Hooks & Data
-import { useFetchExplore } from "@/hooks/useFetchExplore";
-import { getAccentColor, getExploreGradient } from "@/theme/gradients";
-import { ThemeName, themes } from "@/theme/theme";
-import { HeritageItem } from "../components/explore/FeaturedCard";
+type RootStack = { Explore: undefined; ExploreDetails: { item: HeritageItem } };
+type NavProp = NativeStackNavigationProp<RootStack, "Explore">;
 
-// ─── NAV TYPES (adjust to your nav stack) ────────────────────────────────────
-type RootStackParamList = {
-  Explore: undefined;
-  ExploreDetails: { item: HeritageItem };
-};
-type NavProp = NativeStackNavigationProp<RootStackParamList, "Explore">;
-
-// ─── PROPS ────────────────────────────────────────────────────────────────────
-interface ExploreScreenProps {
-  theme?: ThemeName;
+// ─── Scroll-section keys ──────────────────────────────────────────────────────
+type SectionKey = "featured" | "trending" | "grid" | "spacer";
+interface Section {
+  key: SectionKey;
+  data?: HeritageItem[];
 }
 
-// ─── COMPONENT ────────────────────────────────────────────────────────────────
-const ExploreScreen: React.FC<ExploreScreenProps> = ({ theme = "dark" }) => {
+const ExploreScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
-  const t = themes[theme];
-  const grad = getExploreGradient(theme);
-  const accent = getAccentColor(theme);
+  const { themeName } = useTheme();
+  const grad = getExploreGradient(themeName);
+  const accent = getAccentColor(themeName);
 
-  // State
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [filterVisible, setFilterVisible] = useState(false);
@@ -60,10 +51,9 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ theme = "dark" }) => {
     sortBy: "popular",
   });
 
-  // Animated scroll
+  // Single Animated.Value shared by Header + parallax — always native driver
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  // Data
   const {
     items,
     featured,
@@ -73,15 +63,16 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ theme = "dark" }) => {
     error,
     fetchNextPage,
     refresh,
-  } = useFetchExplore(activeCategory, filters);
+  } = useFetchExplore(activeCategory, filters, searchQuery);
 
-  // Handlers
-  const handleItemPress = useCallback(
-    (item: HeritageItem) => {
-      navigation.navigate("ExploreDetails", { item });
+const handleItemPress = useCallback((item: HeritageItem) => {
+  router.push({
+    pathname: "../../Fragments/ExploreDetails",
+    params: {
+      item: JSON.stringify(item),
     },
-    [navigation],
-  );
+  });
+}, []);
 
   const handleLike = useCallback((id: string) => {
     setLikedIds((prev) => {
@@ -89,79 +80,150 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ theme = "dark" }) => {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-    // TODO: sync to Firebase
-    // import { doc, updateDoc, increment } from 'firebase/firestore';
-    // await updateDoc(doc(db, 'heritage_items', id), { likes: increment(isLiked ? -1 : 1) });
   }, []);
 
-  const handleApplyFilters = () => setFilterVisible(false);
+  const gridItems = useMemo(
+    () => items.filter((i) => !featured.some((f) => f.id === i.id)),
+    [items, featured],
+  );
 
-  // Filter items by search
-  const displayItems = searchQuery
-    ? items.filter(
-        (i) =>
-          i.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          i.culture.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          i.era.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : items;
+  // Build flat section list so we use ONE FlatList → avoids nested scroll jank
+  const sections = useMemo<Section[]>(() => {
+    const s: Section[] = [];
+    if (featured.length) s.push({ key: "featured", data: featured });
+    if (trending.length) s.push({ key: "trending", data: trending });
+    if (gridItems.length) s.push({ key: "grid", data: gridItems });
+    s.push({ key: "spacer" });
+    return s;
+  }, [featured, trending, gridItems]);
 
-  const gridItems = displayItems.filter(
-    (i) => !featured.some((f) => f.id === i.id),
+  const renderSection = useCallback(
+    ({ item: section }: ListRenderItemInfo<Section>) => {
+      switch (section.key) {
+        case "featured":
+          return (
+            <View style={styles.featuredBlock}>
+              <View style={styles.sectionHeader}>
+                <View style={[styles.dot, { backgroundColor: accent }]} />
+                <Text style={[styles.sectionTitle, { color: accent }]}>
+                  Featured
+                </Text>
+              </View>
+              {section.data!.map((item, idx) => (
+                <FeaturedCard
+                  key={item.id}
+                  item={item}
+                  index={idx}
+                  onPress={handleItemPress}
+                  onLike={handleLike}
+                  isLiked={likedIds.has(item.id)}
+                  animDelay={idx * 80}
+                />
+              ))}
+            </View>
+          );
+
+        case "trending":
+          return (
+            <TrendingRow
+              items={section.data!}
+              onPress={handleItemPress}
+              title="Trending Now"
+            />
+          );
+
+        case "grid":
+          return (
+            <GridSection
+              items={section.data!}
+              title="Discover More"
+              onPress={handleItemPress}
+              onLike={handleLike}
+              likedIds={likedIds}
+              onSeeAll={() => {}}
+            />
+          );
+
+        case "spacer":
+          return <View style={{ height: 120 }} />;
+
+        default:
+          return null;
+      }
+    },
+    [accent, handleItemPress, handleLike, likedIds],
+  );
+
+  const ListHeader = useMemo(
+    () => (
+      <>
+        <ExploreHeader
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onFilterPress={() => setFilterVisible(true)}
+          scrollY={scrollY}
+        />
+        <CategoryTabs
+          activeCategory={activeCategory}
+          onCategoryChange={setActiveCategory}
+        />
+      </>
+    ),
+    [searchQuery, activeCategory, scrollY],
+  );
+
+  const EmptyComponent = useMemo(
+    () =>
+      loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={accent} />
+          <Text style={[styles.loadingText, { color: accent + "99" }]}>
+            Loading heritage...
+          </Text>
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={[styles.errorText, { color: accent }]}>{error}</Text>
+        </View>
+      ) : null,
+    [loading, error, accent],
   );
 
   return (
     <View style={styles.root}>
-      {/* Background gradient */}
       <LinearGradient
         colors={grad.colors as any}
         start={grad.start}
         end={grad.end}
         style={StyleSheet.absoluteFill}
+        pointerEvents="none"
       />
 
-      {/* Futuristic glow orbs */}
+      {/* Glow orbs — non-interactive, no rerender cost */}
       <View
-        style={[
-          styles.glowOrb,
-          styles.glowOrb1,
-          { backgroundColor: accent + "18" },
-        ]}
+        style={[styles.orb, styles.orb1, { backgroundColor: accent + "16" }]}
+        pointerEvents="none"
       />
-      <View
-        style={[
-          styles.glowOrb,
-          styles.glowOrb2,
-          { backgroundColor: accent + "0d" },
-        ]}
-      />
+      {/* <View
+        style={[styles.orb, styles.orb2, { backgroundColor: accent + "0b" }]}
+        pointerEvents="none"
+      /> */}
 
-      {/* Sticky Header */}
-      <ExploreHeader
-        theme={theme}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onFilterPress={() => setFilterVisible(true)}
-        scrollY={scrollY}
-      />
-
-      {/* Category Tabs */}
-      <CategoryTabs
-        theme={theme}
-        activeCategory={activeCategory}
-        onCategoryChange={setActiveCategory}
-      />
-
-      {/* Scrollable content */}
-      <Animated.ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+      <Animated.FlatList
+        data={sections}
+        keyExtractor={(s) => s.key}
+        renderItem={renderSection}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={EmptyComponent}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false },
+          { useNativeDriver: true }, // ← true keeps scroll on UI thread
         )}
         scrollEventThrottle={16}
+        onEndReached={fetchNextPage}
+        onEndReachedThreshold={0.5}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -170,120 +232,27 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ theme = "dark" }) => {
             colors={[accent]}
           />
         }
-        onEndReached={fetchNextPage}
-        onEndReachedThreshold={0.4}
-      >
-        {loading && items.length === 0 ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator size="large" color={accent} />
-            <Text style={[styles.loadingText, { color: t.text02 }]}>
-              Loading heritage...
-            </Text>
-          </View>
-        ) : error ? (
-          <View style={styles.loadingState}>
-            <Text style={[styles.errorText, { color: accent }]}>{error}</Text>
-          </View>
-        ) : (
-          <>
-            {/* Featured cards */}
-            {featured.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <View
-                    style={[styles.sectionDot, { backgroundColor: accent }]}
-                  />
-                  <Text style={[styles.sectionTitle, { color: t.text01 }]}>
-                    Featured
-                  </Text>
-                </View>
-                {featured.map((item, idx) => (
-                  <FeaturedCard
-                    key={item.id}
-                    item={item}
-                    theme={theme}
-                    index={idx}
-                    onPress={handleItemPress}
-                    onLike={handleLike}
-                    isLiked={likedIds.has(item.id)}
-                    animDelay={idx * 100}
-                  />
-                ))}
-              </View>
-            )}
+        removeClippedSubviews
+        windowSize={5}
+        maxToRenderPerBatch={3}
+        updateCellsBatchingPeriod={80}
+      />
 
-            {/* Trending row */}
-            {trending.length > 0 && (
-              <TrendingRow
-                items={trending}
-                theme={theme}
-                onPress={handleItemPress}
-                title="Trending Now"
-              />
-            )}
-
-            {/* Grid */}
-            {gridItems.length > 0 && (
-              <GridSection
-                items={gridItems}
-                theme={theme}
-                title="Discover More"
-                onPress={handleItemPress}
-                onLike={handleLike}
-                likedIds={likedIds}
-                onSeeAll={() => {}}
-              />
-            )}
-
-            {/* Bottom spacer */}
-            <View style={{ height: 100 }} />
-          </>
-        )}
-      </Animated.ScrollView>
-
-      {/* Filter sheet */}
       <FilterBottomSheet
         visible={filterVisible}
         onClose={() => setFilterVisible(false)}
-        theme={theme}
         filters={filters}
         onFiltersChange={setFilters}
-        onApply={handleApplyFilters}
+        onApply={() => setFilterVisible(false)}
       />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  glowOrb: {
-    position: "absolute",
-    borderRadius: 300,
-  },
-  glowOrb1: {
-    width: 300,
-    height: 300,
-    top: -80,
-    right: -80,
-  },
-  glowOrb2: {
-    width: 220,
-    height: 220,
-    bottom: 200,
-    left: -60,
-  },
-  scrollView: {
-    flex: 1,
-    marginTop: 8,
-  },
-  scrollContent: {
-    paddingTop: 16,
-  },
-  section: {
-    marginBottom: 24,
-  },
+  root: { flex: 1 },
+  listContent: { paddingTop: 8 },
+  featuredBlock: { marginBottom: 24, justifyContent: "center", gap: 18 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -291,17 +260,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 14,
   },
-  sectionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
+  dot: { width: 6, height: 6, borderRadius: 3 },
   sectionTitle: {
     fontSize: 16,
     fontFamily: "PlayfairDisplay-Bold",
     letterSpacing: -0.2,
   },
-  loadingState: {
+  center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -309,14 +274,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   loadingText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "SpaceMono-Regular",
-    letterSpacing: 1,
+    letterSpacing: 1.5,
   },
-  errorText: {
-    fontSize: 13,
-    fontFamily: "SpaceMono-Regular",
-  },
+  errorText: { fontSize: 13, fontFamily: "SpaceMono-Regular" },
+  orb: { position: "absolute", borderRadius: 300 },
+  orb1: { width: 200, height: 200, top: -10, right: -60 },
+  orb2: { width: 240, height: 240, bottom: 180, left: -70 },
 });
 
 export default ExploreScreen;

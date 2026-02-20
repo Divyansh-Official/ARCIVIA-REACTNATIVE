@@ -1,134 +1,143 @@
+import GlassView from "@/app/components/UI/GlassView";
+import { useTheme } from "@/app/context/ThemeContext";
+import { getAccentColor, getGlowColor } from "@/theme/gradients";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import React, { useRef } from "react";
+import React, { memo, useRef } from "react";
 import {
-    Animated,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Animated,
+  Image,
+  Platform,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
-import { getAccentColor, getGlowColor } from "../../../theme/gradients";
-import { ThemeName, themes } from "@/theme/theme";
 
 interface ExploreHeaderProps {
-  theme: ThemeName;
   searchQuery: string;
-  onSearchChange: (text: string) => void;
+  onSearchChange: (t: string) => void;
   onFilterPress: () => void;
   scrollY: Animated.Value;
 }
 
-const ExploreHeader: React.FC<ExploreHeaderProps> = ({
-  theme,
-  searchQuery,
-  onSearchChange,
-  onFilterPress,
-  scrollY,
-}) => {
-  const t = themes[theme];
-  const accent = getAccentColor(theme);
-  const glow = getGlowColor(theme);
-  const inputRef = useRef<TextInput>(null);
+const COLLAPSE_DIST = 70;
 
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [1, 0.97],
-    extrapolate: "clamp",
-  });
+const ExploreHeader: React.FC<ExploreHeaderProps> = memo(
+  ({ searchQuery, onSearchChange, onFilterPress, scrollY }) => {
+    const { theme, themeName } = useTheme();
+    const accent = getAccentColor(themeName);
+    const glow = getGlowColor(themeName);
+    const inputRef = useRef<TextInput>(null);
 
-  const headerTranslate = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [0, -4],
-    extrapolate: "clamp",
-  });
+    // All interpolations use nativeDriver: true — no JS thread blocking
+    const titleScale = scrollY.interpolate({
+      inputRange: [0, COLLAPSE_DIST],
+      outputRange: [1, 0.86],
+      extrapolate: "clamp",
+    });
 
-  const titleScale = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [1, 0.88],
-    extrapolate: "clamp",
-  });
+    const titleOpacity = scrollY.interpolate({
+      inputRange: [0, COLLAPSE_DIST * 0.6],
+      outputRange: [1, 0],
+      extrapolate: "clamp",
+    });
 
-  return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          opacity: headerOpacity,
-          transform: [{ translateY: headerTranslate }],
-        },
-      ]}
-    >
-      <Animated.View style={{ transform: [{ scale: titleScale }] }}>
-        <View style={styles.titleRow}>
-          <View>
-            <Text style={[styles.subtitle, { color: accent }]}>
-              ◈ HERITAGE AUGMENTED
-            </Text>
-            <Text style={[styles.title, { color: t.text01 }]}>Explore</Text>
-          </View>
-          <TouchableOpacity
-            onPress={onFilterPress}
-            style={[
-              styles.filterBtn,
-              { borderColor: accent, shadowColor: glow },
-            ]}
-          >
-            <LinearGradient
-              colors={[accent + "22", accent + "11"]}
-              style={styles.filterGrad}
-            >
-              <Ionicons name="options-outline" size={20} color={accent} />
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
+    const headerTranslate = scrollY.interpolate({
+      inputRange: [0, COLLAPSE_DIST],
+      outputRange: [0, -6],
+      extrapolate: "clamp",
+    });
 
-      {/* Search Bar */}
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() => inputRef.current?.focus()}
+    return (
+      <Animated.View
         style={[
-          styles.searchWrapper,
-          {
-            backgroundColor:
-              theme === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
-            borderColor: accent + "33",
-            shadowColor: glow,
-          },
+          styles.container,
+          { transform: [{ translateY: headerTranslate }] },
         ]}
       >
-        <Ionicons
-          name="search"
-          size={16}
-          color={t.text02}
-          style={styles.searchIcon}
-        />
-        <TextInput
-          ref={inputRef}
-          style={[styles.searchInput, { color: t.text01 }]}
-          placeholder="Search artifacts, eras, cultures..."
-          placeholderTextColor={t.text02}
-          value={searchQuery}
-          onChangeText={onSearchChange}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => onSearchChange("")}>
-            <Ionicons name="close-circle" size={16} color={t.text02} />
+        {/* Title row */}
+        <View style={styles.titleRow}>
+          <View style={styles.titleBlock}>
+            <Animated.Text
+              style={[
+                styles.subtitle,
+                { color: accent, opacity: titleOpacity },
+              ]}
+            >
+              ◈ HERITAGE AUGMENTED
+            </Animated.Text>
+            <Animated.Text
+              style={[
+                styles.title,
+                { color: theme.text01, transform: [{ scale: titleScale }] },
+              ]}
+            >
+              EXPLORE
+            </Animated.Text>
+          </View>
+
+          {/* Filter button — glass */}
+          <TouchableOpacity
+            onPress={onFilterPress}
+            activeOpacity={0.75}
+            style={[styles.filterBtn, { shadowColor: glow }]}
+          >
+            <GlassView
+              intensity={55}
+              accentTint
+              style={[styles.filterGlass, { borderColor: accent + "45" }]}
+            >
+              <Ionicons name="options-outline" size={20} color={accent} />
+            </GlassView>
           </TouchableOpacity>
-        )}
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
+        </View>
+
+        {/* Search bar — glass */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => inputRef.current?.focus()}
+        >
+          <GlassView
+            intensity={50}
+            style={[styles.searchBar, { borderColor: accent + "30" }]}
+          >
+            <Image
+              source={require("../../../assets/icons/search_icon01.png")}
+              className="w-6 h-6"
+              style={[styles.searchIcon, { tintColor: theme.text02 + "90" }]}
+            />
+            <TextInput
+              ref={inputRef}
+              style={[styles.searchInput, { color: theme.text01 }]}
+              placeholder="Search artifacts, eras, cultures..."
+              placeholderTextColor={theme.text02 + "90"}
+              value={searchQuery}
+              onChangeText={onSearchChange}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => onSearchChange("")}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Image
+                  source={require("../../../assets/icons/cross_icon01.png")}
+                  className="w-5 h-5"
+                  style={{ tintColor: theme.text02 + "90" }}
+                />
+              </TouchableOpacity>
+            )}
+          </GlassView>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  },
+);
 
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 56 : 40,
-    paddingBottom: 12,
+    paddingTop: Platform.OS === "ios" ? 58 : 42,
+    paddingBottom: 14,
     zIndex: 10,
   },
   titleRow: {
@@ -137,50 +146,46 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     marginBottom: 16,
   },
+  titleBlock: { gap: 2 },
   subtitle: {
     fontSize: 10,
     fontFamily: "SpaceMono-Regular",
     letterSpacing: 2.5,
-    marginBottom: 4,
   },
   title: {
     fontSize: 36,
     fontFamily: "PlayfairDisplay-Bold",
-    letterSpacing: -0.5,
+    letterSpacing: 6,
   },
   filterBtn: {
-    borderRadius: 14,
-    borderWidth: 1,
-    overflow: "hidden",
+    borderRadius: 16,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.55,
+    shadowRadius: 10,
+    elevation: 15,
   },
-  filterGrad: {
+  filterGlass: {
     padding: 12,
-  },
-  searchWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
     borderRadius: 16,
     borderWidth: 1,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    paddingVertical: 13,
   },
-  searchIcon: {
-    marginRight: 10,
-  },
+  searchIcon: { marginRight: 10},
   searchInput: {
     flex: 1,
     fontSize: 14,
     fontFamily: "SpaceMono-Regular",
     letterSpacing: 0.3,
+    paddingVertical: 0,
   },
 });
 
+ExploreHeader.displayName = "ExploreHeader";
 export default ExploreHeader;

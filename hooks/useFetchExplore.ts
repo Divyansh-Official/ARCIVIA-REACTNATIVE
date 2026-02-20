@@ -1,322 +1,424 @@
-import { HeritageItem } from "@/app/components/explore/FeaturedCard";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-// ─── ENV CONFIG ───────────────────────────────────────────────────────────────
-// In your .env file (with expo-constants or react-native-config):
-// EXPO_PUBLIC_HERITAGE_API_URL=https://...
-// EXPO_PUBLIC_FIREBASE_PROJECT_ID=...
-// etc.
-//
-// Recommended APIs:
-// 1. Europeana API (https://apis.europeana.eu) — 50M+ cultural heritage items, FREE
-//    → Best for artifacts, paintings, monuments across European institutions
-// 2. The Metropolitan Museum API (https://metmuseum.github.io) — FREE, no key required
-//    → 490k+ objects from The Met
-// 3. Harvard Art Museums API (https://api.harvardartmuseums.org) — FREE key
-//    → High-res images, detailed provenance data
-// 4. Smithsonian Open Access API (https://edan.si.edu/openaccess/apidocs/) — FREE
-//    → 11M+ records from Smithsonian institutions
-// 5. Google Arts & Culture Partner API — Application required
-//
-// For AR overlays:
-// - 8th Wall (https://www.8thwall.com) — WebAR
-// - Niantic Lightship (https://lightship.dev) — native AR SDK
+// ─── MET MUSEUM API ──────────────────────────────────────────────────────────
+// Free, no API key needed. Rate limit: 80 req/sec.
+// Docs: https://metmuseum.github.io
+const MET_BASE = "https://collectionapi.metmuseum.org/public/collection/v1";
 
-const HERITAGE_API_URL = process.env.EXPO_PUBLIC_HERITAGE_API_URL ?? "";
-const MET_API = "https://collectionapi.metmuseum.org/public/collection/v1";
+// ─── DEPARTMENT → CATEGORY MAPPING ───────────────────────────────────────────
+// Full dept list from: GET /public/collection/v1/departments
+const DEPARTMENT_IDS: Record<string, number[]> = {
+  all: [3, 6, 10, 11, 12, 13, 14, 17],
+  trending: [10, 13, 11], // Egyptian, Greek/Roman, European Paintings
+  ancient: [3, 10, 13], // Near Eastern, Egyptian, Greek & Roman
+  medieval: [7, 17], // The Cloisters, Medieval Art
+  artifacts: [3, 4, 6, 10, 13, 14],
+  monuments: [11, 12, 13, 17],
+  museums: [1, 8, 15, 19],
+};
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
-interface UseFetchExploreReturn {
-  items: HeritageItem[];
-  featured: HeritageItem[];
-  trending: HeritageItem[];
-  loading: boolean;
-  refreshing: boolean;
-  error: string | null;
-  hasMore: boolean;
-  fetchNextPage: () => void;
-  refresh: () => void;
+export interface HeritageItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  era: string;
+  culture: string;
+  imageUrl: string;
+  views: number;
+  likes: number;
+  isAR: boolean;
+  category: string;
+  location: string;
+  description: string;
+  tags: string[];
+  objectURL?: string;
 }
 
-// ─── MOCK DATA (swap with real API calls) ────────────────────────────────────
-export const MOCK_ITEMS: HeritageItem[] = [
-  {
-    id: "1",
-    title: "Mask of Tutankhamun",
-    subtitle: "18th Dynasty Royal Funerary Mask",
-    era: "Ancient Egypt · 1323 BC",
-    culture: "Egyptian",
-    imageUrl: "https://images.metmuseum.org/CRDImages/eg/original/DP251139.jpg",
-    views: 124000,
-    likes: 8420,
-    isAR: true,
-    category: "artifacts",
-    location: "Cairo, Egypt",
-    description:
-      "The death mask of Tutankhamun is a gold mask of the mummy of the 18th-dynasty Ancient Egyptian Pharaoh Tutankhamun. It is one of the most famous works of art in the world.",
-    tags: ["gold", "funerary", "royal", "18th dynasty"],
-  },
-  {
-    id: "2",
-    title: "Colosseum",
-    subtitle: "Flavian Amphitheatre",
-    era: "Roman Empire · 70–80 AD",
-    culture: "Roman",
-    imageUrl: "https://images.metmuseum.org/CRDImages/gr/original/DP132633.jpg",
-    views: 892000,
-    likes: 32100,
-    isAR: true,
-    category: "monuments",
-    location: "Rome, Italy",
-    description:
-      "The Colosseum is an oval amphitheatre in the centre of the city of Rome, Italy. Built of travertine limestone, volcanic tuff, and brick-faced concrete.",
-    tags: ["amphitheatre", "roman", "gladiatorial", "architecture"],
-  },
-  {
-    id: "3",
-    title: "Venus de Milo",
-    subtitle: "Ancient Greek Sculpture",
-    era: "Hellenistic · 130–100 BC",
-    culture: "Greek",
-    imageUrl: "https://images.metmuseum.org/CRDImages/gr/original/DP121212.jpg",
-    views: 234000,
-    likes: 14200,
-    isAR: false,
-    category: "artifacts",
-    location: "Louvre, Paris",
-    description:
-      "The Venus de Milo is an ancient Greek sculpture and one of the most famous works of ancient Greek sculpture. Created sometime between 130 and 100 BC.",
-    tags: ["sculpture", "marble", "goddess", "hellenistic"],
-  },
-  {
-    id: "4",
-    title: "Stonehenge",
-    subtitle: "Neolithic Monument",
-    era: "Prehistoric · 3000 BC",
-    culture: "Celtic",
-    imageUrl: "https://images.metmuseum.org/CRDImages/gr/original/DP114888.jpg",
-    views: 675000,
-    likes: 28900,
-    isAR: true,
-    category: "monuments",
-    location: "Wiltshire, UK",
-    description:
-      "Stonehenge is a prehistoric monument on Salisbury Plain in Wiltshire, England. Its main phase of construction took place between 3000 and 1500 BC.",
-    tags: ["megalith", "prehistoric", "ritual", "astronomy"],
-  },
-  {
-    id: "5",
-    title: "Cuneiform Tablet",
-    subtitle: "Epic of Gilgamesh Fragment",
-    era: "Mesopotamian · 2100 BC",
-    culture: "Mesopotamian",
-    imageUrl: "https://images.metmuseum.org/CRDImages/an/original/DP251139.jpg",
-    views: 87000,
-    likes: 5600,
-    isAR: false,
-    category: "artifacts",
-    location: "British Museum, London",
-    description:
-      "One of the earliest forms of written literature, this clay tablet contains fragments of the Epic of Gilgamesh, humanity's oldest known work of literary fiction.",
-    tags: ["writing", "literature", "clay", "sumerian"],
-  },
-  {
-    id: "6",
-    title: "Notre-Dame Cathedral",
-    subtitle: "French Gothic Architecture",
-    era: "Medieval · 1163 AD",
-    culture: "French",
-    imageUrl: "https://images.metmuseum.org/CRDImages/md/original/DP251139.jpg",
-    views: 1200000,
-    likes: 47300,
-    isAR: true,
-    category: "monuments",
-    location: "Paris, France",
-    description:
-      "Notre-Dame de Paris is a medieval Catholic cathedral on the Île de la Cité in the 4th arrondissement of Paris. The cathedral is considered to be one of the finest examples of French Gothic architecture.",
-    tags: ["gothic", "cathedral", "medieval", "paris"],
-  },
-  {
-    id: "7",
-    title: "Terracotta Army",
-    subtitle: "Mausoleum of Qin Shi Huang",
-    era: "Qin Dynasty · 210 BC",
-    culture: "Chinese",
-    imageUrl: "https://images.metmuseum.org/CRDImages/as/original/DP251139.jpg",
-    views: 445000,
-    likes: 19800,
-    isAR: true,
-    category: "artifacts",
-    location: "Xi'an, China",
-    description:
-      "The Terracotta Army is a collection of terracotta sculptures depicting the armies of Qin Shi Huang, the first emperor of China. The figures date to the late third century BCE.",
-    tags: ["terracotta", "military", "imperial", "burial"],
-  },
-  {
-    id: "8",
-    title: "Acropolis of Athens",
-    subtitle: "Sacred Rock of Athens",
-    era: "Classical · 5th century BC",
-    culture: "Greek",
-    imageUrl: "https://images.metmuseum.org/CRDImages/gr/original/DP114889.jpg",
-    views: 788000,
-    likes: 36500,
-    isAR: false,
-    category: "monuments",
-    location: "Athens, Greece",
-    description:
-      "The Acropolis of Athens is an ancient citadel located on a rocky outcrop above the city of Athens, containing the remains of several ancient buildings of great architectural and historical significance.",
-    tags: ["parthenon", "classical", "greek", "acropolis"],
-  },
-];
+export interface FetchFilters {
+  era: string[];
+  culture: string[];
+  arOnly: boolean;
+  sortBy: "popular" | "newest" | "oldest";
+}
 
-// ─── HOOKS ────────────────────────────────────────────────────────────────────
+interface MetObject {
+  objectID: number;
+  isHighlight: boolean;
+  isPublicDomain: boolean;
+  primaryImage: string;
+  primaryImageSmall: string;
+  title: string;
+  culture: string;
+  period: string;
+  dynasty: string;
+  artistDisplayName: string;
+  artistDisplayBio: string;
+  objectDate: string;
+  objectBeginDate: number;
+  objectEndDate: number;
+  medium: string;
+  dimensions: string;
+  country: string;
+  city: string;
+  region: string;
+  department: string;
+  objectName: string;
+  creditLine: string;
+  objectURL: string;
+  tags?: { term: string }[];
+  classification: string;
+}
+
+// ─── TRANSFORM: MetObject → HeritageItem ─────────────────────────────────────
+const toHeritageItem = (obj: MetObject, category: string): HeritageItem => {
+  // Build era string
+  const periodPart = obj.period || obj.dynasty || "";
+  const yearPart =
+    obj.objectBeginDate !== 0
+      ? obj.objectBeginDate < 0
+        ? `${Math.abs(obj.objectBeginDate)} BC`
+        : `${obj.objectBeginDate} AD`
+      : obj.objectDate || "";
+  const era =
+    [periodPart, yearPart].filter(Boolean).join(" · ") || "Unknown Period";
+
+  // Location
+  const location =
+    [obj.city, obj.country, obj.region].filter(Boolean).join(", ") ||
+    "The Metropolitan Museum of Art";
+
+  // Culture
+  const culture =
+    obj.culture || obj.artistDisplayName || obj.department || "Unknown Culture";
+
+  // Tags
+  const tags =
+    obj.tags && obj.tags.length > 0
+      ? obj.tags.map((t) => t.term.toLowerCase())
+      : [obj.classification, obj.objectName, obj.medium]
+          .filter(Boolean)
+          .map((s) => s.toLowerCase().split(" ")[0]);
+
+  // Description
+  const descParts = [
+    obj.objectName && `Object type: ${obj.objectName}.`,
+    obj.medium && `Medium: ${obj.medium}.`,
+    obj.dimensions && `Dimensions: ${obj.dimensions}.`,
+    obj.creditLine,
+    obj.artistDisplayBio && `Artist: ${obj.artistDisplayBio}.`,
+  ].filter(Boolean);
+
+  return {
+    id: String(obj.objectID),
+    title: obj.title || "Untitled Work",
+    subtitle: obj.objectName || obj.classification || "",
+    era,
+    culture,
+    // Prefer full-res; fall back to web-large thumbnail
+    imageUrl: obj.primaryImage || obj.primaryImageSmall,
+    views: Math.floor(Math.random() * 500_000) + 10_000,
+    likes: Math.floor(Math.random() * 20_000) + 100,
+    // Use isHighlight as the AR flag — swap with your own AR asset check
+    isAR: obj.isHighlight,
+    category,
+    location,
+    description: descParts.join(" ") || "No description available.",
+    tags: tags.slice(0, 6),
+    objectURL: obj.objectURL,
+  };
+};
+
+// ─── LOW-LEVEL FETCHERS ───────────────────────────────────────────────────────
+
+/** Fetch a single object by ID; returns null if it has no image */
+async function fetchObject(
+  id: number,
+  signal?: AbortSignal,
+): Promise<MetObject | null> {
+  try {
+    const res = await fetch(`${MET_BASE}/objects/${id}`, { signal });
+    if (!res.ok) return null;
+    const obj: MetObject = await res.json();
+    return obj.primaryImage || obj.primaryImageSmall ? obj : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
- * Primary hook to fetch explore items.
- * Swap mock data for real API calls using the pattern shown below.
+ * Fetch a batch of IDs in parallel, discarding any without images.
+ * Fetches `ids` in chunks to avoid hammering the rate limit.
  */
+async function fetchObjectsBatch(
+  ids: number[],
+  category: string,
+  signal?: AbortSignal,
+): Promise<HeritageItem[]> {
+  const CHUNK = 10;
+  const results: HeritageItem[] = [];
+
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    if (signal?.aborted) break;
+    const chunk = ids.slice(i, i + CHUNK);
+    const settled = await Promise.allSettled(
+      chunk.map((id) => fetchObject(id, signal)),
+    );
+    for (const r of settled) {
+      if (r.status === "fulfilled" && r.value) {
+        results.push(toHeritageItem(r.value, category));
+      }
+    }
+    // Yield to avoid rate-limit bursts
+    if (i + CHUNK < ids.length) {
+      await new Promise((r) => setTimeout(r, 120));
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Get object IDs either via search (if searchQuery) or by department listing.
+ * Returns a flat list of IDs sized for one page.
+ */
+async function resolveObjectIDs(
+  category: string,
+  searchQuery: string,
+  filters: FetchFilters,
+  page: number,
+  signal?: AbortSignal,
+): Promise<number[]> {
+  const PAGE_SIZE = 20;
+  const OVERSAMPLE = 3; // fetch 3× to account for imageless records
+
+  if (searchQuery.trim()) {
+    // ── Search endpoint ────────────────────────────────────────────────
+    const params = new URLSearchParams({
+      q: searchQuery.trim(),
+      hasImages: "true",
+    });
+    if (filters.arOnly) params.set("isHighlight", "true");
+    if (filters.era.length === 1) {
+      // Approximate era → date ranges
+      const eraDateMap: Record<string, [number, number]> = {
+        Prehistoric: [-3000, -1000],
+        Ancient: [-1000, 500],
+        Medieval: [500, 1500],
+        Renaissance: [1400, 1700],
+        Modern: [1700, 2000],
+      };
+      const range = eraDateMap[filters.era[0]];
+      if (range) {
+        params.set("dateBegin", String(range[0]));
+        params.set("dateEnd", String(range[1]));
+      }
+    }
+    if (filters.culture.length > 0) {
+      // Culture search overrides q
+      params.set("q", filters.culture[0]);
+      params.set("artistOrCulture", "true");
+    }
+
+    const res = await fetch(`${MET_BASE}/search?${params}`, { signal });
+    if (!res.ok) throw new Error("Search failed");
+    const data = await res.json();
+    const ids: number[] = data.objectIDs ?? [];
+    const start = (page - 1) * PAGE_SIZE * OVERSAMPLE;
+    return ids.slice(start, start + PAGE_SIZE * OVERSAMPLE);
+  }
+
+  // ── Department listing ────────────────────────────────────────────────
+  const depts = DEPARTMENT_IDS[category] ?? DEPARTMENT_IDS.all;
+  // Rotate which department we pull from each page for variety
+  const deptId = depts[(page - 1) % depts.length];
+
+  const res = await fetch(`${MET_BASE}/objects?departmentIds=${deptId}`, {
+    signal,
+  });
+  if (!res.ok) throw new Error("Department fetch failed");
+  const data = await res.json();
+  const ids: number[] = data.objectIDs ?? [];
+
+  // Stagger starting offset by page to avoid always returning the same items
+  const stride = PAGE_SIZE * OVERSAMPLE;
+  const start = ((page - 1) * stride * 2) % Math.max(ids.length - stride, 1);
+  return ids.slice(start, start + stride);
+}
+
+// ─── HOOK: useFetchExplore ────────────────────────────────────────────────────
 export const useFetchExplore = (
   category: string,
-  filters: {
-    era: string[];
-    culture: string[];
-    arOnly: boolean;
-    sortBy: string;
-  },
-): UseFetchExploreReturn => {
+  filters: FetchFilters,
+  searchQuery: string = "",
+) => {
   const [items, setItems] = useState<HeritageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const fetchData = useCallback(
-    async (isRefresh = false) => {
+  const load = useCallback(
+    async (pageNum: number, isRefresh = false) => {
+      abortRef.current?.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+
       try {
-        if (isRefresh) setRefreshing(true);
-        else if (page === 1) setLoading(true);
-
-        // ── REAL API EXAMPLE (Europeana) ──────────────────────────────────
-        // const apiKey = process.env.EXPO_PUBLIC_EUROPEANA_API_KEY;
-        // const res = await fetch(
-        //   `https://api.europeana.eu/record/v2/search.json?wskey=${apiKey}&query=${category}&rows=20&start=${(page-1)*20+1}&media=true&thumbnail=true`
-        // );
-        // const data = await res.json();
-        // const mapped: HeritageItem[] = data.items.map((item: any) => ({
-        //   id: item.id,
-        //   title: item.title?.[0] ?? "Untitled",
-        //   subtitle: item.dcDescription?.[0] ?? "",
-        //   era: item.year?.join(", ") ?? "Unknown",
-        //   culture: item.country?.[0] ?? "Unknown",
-        //   imageUrl: item.edmPreview?.[0] ?? "",
-        //   views: Math.floor(Math.random() * 100000),
-        //   likes: Math.floor(Math.random() * 5000),
-        //   isAR: false,
-        //   category,
-        //   location: item.country?.[0] ?? "",
-        //   description: item.dcDescription?.[0] ?? "",
-        //   tags: item.dcSubject ?? [],
-        // }));
-
-        // ── MOCK (replace above) ──────────────────────────────────────────
-        await new Promise((r) => setTimeout(r, 800)); // simulate network
-        let filtered = MOCK_ITEMS;
-
-        if (category !== "all" && category !== "trending") {
-          filtered = filtered.filter((i) => i.category === category);
-        }
-        if (filters.arOnly) {
-          filtered = filtered.filter((i) => i.isAR);
-        }
-        if (filters.era.length > 0) {
-          filtered = filtered.filter((i) =>
-            filters.era.some((e) =>
-              i.era.toLowerCase().includes(e.toLowerCase()),
-            ),
-          );
-        }
-        if (filters.culture.length > 0) {
-          filtered = filtered.filter((i) =>
-            filters.culture.some((c) =>
-              i.culture.toLowerCase().includes(c.toLowerCase()),
-            ),
-          );
-        }
-
-        if (isRefresh) {
-          setItems(filtered);
-          setPage(1);
-        } else {
-          setItems((prev) => (page === 1 ? filtered : [...prev, ...filtered]));
-        }
-        setHasMore(filtered.length >= 20);
+        if (pageNum === 1) isRefresh ? setRefreshing(true) : setLoading(true);
         setError(null);
+
+        const ids = await resolveObjectIDs(
+          category,
+          searchQuery,
+          filters,
+          pageNum,
+          ctrl.signal,
+        );
+
+        if (ids.length === 0) {
+          setHasMore(false);
+          return;
+        }
+
+        const fetched = await fetchObjectsBatch(ids, category, ctrl.signal);
+
+        // Apply arOnly client-side (isHighlight check)
+        const display = filters.arOnly
+          ? fetched.filter((i) => i.isAR)
+          : fetched;
+
+        setItems((prev) => (pageNum === 1 ? display : [...prev, ...display]));
+        setHasMore(ids.length >= 20);
       } catch (e: any) {
-        setError(e.message ?? "Failed to load");
+        if (e?.name !== "AbortError") {
+          setError(e?.message ?? "Something went wrong. Pull down to retry.");
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [category, filters, page],
+    [category, filters, searchQuery],
   );
 
+  // Reset + reload when category/filters/search change
   useEffect(() => {
     setPage(1);
     setItems([]);
-  }, [category, filters]);
+    setHasMore(true);
+    load(1);
+    return () => abortRef.current?.abort();
+  }, [category, filters, searchQuery]);
 
+  // Paginate
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (page > 1) load(page);
+  }, [page]);
 
   return {
     items,
     featured: items.slice(0, 3),
-    trending: items.slice(0, 6),
+    trending: items.slice(0, 8),
     loading,
     refreshing,
     error,
     hasMore,
     fetchNextPage: () => {
-      if (hasMore && !loading) setPage((p) => p + 1);
+      if (hasMore && !loading && !refreshing) setPage((p) => p + 1);
     },
-    refresh: () => fetchData(true),
+    refresh: () => {
+      setPage(1);
+      setItems([]);
+      load(1, true);
+    },
   };
 };
 
-/**
- * Hook to fetch a single item's full detail.
- * Use this in ExploreDetails.tsx
- */
-export const useFetchItemDetail = (
-  id: string,
-): {
-  item: HeritageItem | null;
-  loading: boolean;
-  relatedItems: HeritageItem[];
-} => {
+// ─── HOOK: useFetchItemDetail ─────────────────────────────────────────────────
+export const useFetchItemDetail = (id: string) => {
   const [item, setItem] = useState<HeritageItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [relatedItems, setRelatedItems] = useState<HeritageItem[]>([]);
+  const [rawObject, setRawObject] = useState<MetObject | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+
+    const run = async () => {
+      setLoading(true);
+      try {
+        // 1. Fetch the main object
+        const obj = await fetchObject(Number(id));
+        if (!obj || cancelled) return;
+        setRawObject(obj);
+        setItem(toHeritageItem(obj, "artifacts"));
+
+        // 2. Find related via culture/tag/department search
+        const searchTerm =
+          obj.culture || obj.tags?.[0]?.term || obj.department || "ancient";
+
+        const res = await fetch(
+          `${MET_BASE}/search?q=${encodeURIComponent(searchTerm)}&hasImages=true`,
+        );
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+
+        const relIds: number[] = (data.objectIDs ?? [])
+          .filter((rid: number) => rid !== Number(id))
+          .slice(0, 40);
+
+        const related = await fetchObjectsBatch(relIds, "artifacts");
+        if (!cancelled) {
+          setRelatedItems(related.filter((r) => r.id !== id).slice(0, 6));
+        }
+      } catch (e) {
+        console.error("[useFetchItemDetail]", e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  return { item, loading, relatedItems, rawObject };
+};
+
+// ─── HOOK: useFetchHighlights ─────────────────────────────────────────────────
+// Fetches Met "isHighlight" works — perfect for the featured hero cards
+export const useFetchHighlights = (query = "ancient") => {
+  const [items, setItems] = useState<HeritageItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      await new Promise((r) => setTimeout(r, 400));
-      const found = MOCK_ITEMS.find((i) => i.id === id) ?? null;
-      setItem(found);
-      setLoading(false);
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const res = await fetch(
+          `${MET_BASE}/search?isHighlight=true&hasImages=true&q=${encodeURIComponent(query)}`,
+        );
+        const data = await res.json();
+        const ids: number[] = (data.objectIDs ?? []).slice(0, 40);
+        const fetched = await fetchObjectsBatch(ids, "featured");
+        if (!cancelled) setItems(fetched.slice(0, 10));
+      } catch (e) {
+        console.error("[useFetchHighlights]", e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
-    fetch();
-  }, [id]);
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
 
-  const relatedItems = MOCK_ITEMS.filter(
-    (i) =>
-      i.id !== id &&
-      (i.culture === item?.culture || i.category === item?.category),
-  ).slice(0, 4);
-
-  return { item, loading, relatedItems };
+  return { items, loading };
 };

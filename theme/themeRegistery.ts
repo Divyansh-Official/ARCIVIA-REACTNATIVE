@@ -27,7 +27,7 @@ export const THEME_REGISTRY: ThemeRegistryEntry[] = [
   {
     name: "light",
     label: "Light",
-    icon: Icons.dark,
+    icon: Icons.light,
     gradients: ["rgba(243,219,206,0.95)", "rgba(255,240,230,0.85)"],
     glow: "rgba(255,140,105,0.6)",
   },

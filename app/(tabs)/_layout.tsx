@@ -207,21 +207,6 @@ const _layout = () => {
       />
 
       <Tabs.Screen
-        name="explore"
-        options={{
-          title: "EXPLORE",
-          tabBarIcon: ({ focused, tintColor }) => (
-            <TabIcon
-              focused={focused}
-              tintColor={tintColor}
-              iconUnselected={require("../../assets/bottom_navigation_icons/explore_unselected_icon01.png")}
-              iconSelected={require("../../assets/bottom_navigation_icons/explore_selected_icon01.png")}
-            />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
         name="chats"
         options={{
           title: "CHATS",
@@ -231,6 +216,36 @@ const _layout = () => {
               tintColor={tintColor}
               iconUnselected={require("../../assets/bottom_navigation_icons/chats_unselected_icon01.png")}
               iconSelected={require("../../assets/bottom_navigation_icons/chats_selected_icon01.png")}
+            />
+          ),
+        }}
+      />
+
+        <Tabs.Screen
+          name="explore"
+          options={{
+            title: "EXPLORE",
+            tabBarIcon: ({ focused, tintColor }) => (
+              <TabIcon
+                focused={focused}
+                tintColor={tintColor}
+                iconUnselected={require("../../assets/bottom_navigation_icons/explore_unselected_icon01.png")}
+                iconSelected={require("../../assets/bottom_navigation_icons/explore_selected_icon01.png")}
+              />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+        name="favorites"
+        options={{
+          title: "FAVORITES",
+          tabBarIcon: ({ focused, tintColor }) => (
+            <TabIcon
+              focused={focused}
+              tintColor={tintColor}
+              iconUnselected={require("../../assets/bottom_navigation_icons/favorites_unselected_icon01.png")}
+              iconSelected={require("../../assets/bottom_navigation_icons/favorites_selected_icon01.png")}
             />
           ),
         }}

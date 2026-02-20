@@ -1,242 +1,200 @@
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useRef } from "react";
+import React, { memo, useCallback, useRef } from "react";
 import {
-    Animated,
-    Dimensions,
-    ImageBackground,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  ImageBackground,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { getAccentColor, getGlowColor } from "../../../theme/gradients";
-import { ThemeName, themes } from "@/theme/theme";
+import { getAccentColor, getGlowColor } from "@/theme/gradients";
+import { useTheme } from "@/app/context/ThemeContext";
 import { HeritageItem } from "./FeaturedCard";
 
-const { width } = Dimensions.get("window");
-const TRENDING_CARD_W = 160;
-const TRENDING_CARD_H = 220;
+const CARD_W = 160;
+const CARD_H = 220;
+const NUMBER_W = 80;   // width of the large rank number
+const OVERLAP  = 36;   // how much the card overlaps the number
+const ITEM_W   = NUMBER_W + CARD_W - OVERLAP; // total item width in scroll
 
 interface TrendingRowProps {
-  items: HeritageItem[];
-  theme: ThemeName;
+  items:   HeritageItem[];
   onPress: (item: HeritageItem) => void;
-  title?: string;
+  title?:  string;
 }
 
-const TrendingCard = ({
-  item,
-  theme,
-  index,
-  onPress,
+const TrendingCard = memo(({
+  item, index, onPress,
 }: {
-  item: HeritageItem;
-  theme: ThemeName;
-  index: number;
+  item:    HeritageItem;
+  index:   number;
   onPress: (item: HeritageItem) => void;
 }) => {
-  const accent = getAccentColor(theme);
-  const glow = getGlowColor(theme);
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const { themeName } = useTheme();
+  const accent = getAccentColor(themeName);
+  const glow   = getGlowColor(themeName);
+  const scale  = useRef(new Animated.Value(1)).current;
 
-  const handlePressIn = () =>
-    Animated.spring(scaleAnim, {
-      toValue: 0.95,
-      friction: 8,
-      useNativeDriver: true,
-    }).start();
-  const handlePressOut = () =>
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 6,
-      useNativeDriver: true,
-    }).start();
+  const handlePress  = useCallback(() => onPress(item), [item, onPress]);
+  const handleIn     = useCallback(() =>
+    Animated.spring(scale, { toValue: 0.94, friction: 8, useNativeDriver: true }).start(), []);
+  const handleOut    = useCallback(() =>
+    Animated.spring(scale, { toValue: 1,    friction: 6, useNativeDriver: true }).start(), []);
+
+  const rankStr = String(index + 1);
 
   return (
-    <Animated.View
-      style={{ transform: [{ scale: scaleAnim }], marginRight: 12 }}
-    >
+    <Animated.View style={[styles.itemContainer, { transform: [{ scale }] }]}>
+      {/* ── Large Netflix-style rank number (outlined stroke via layered Text) ── */}
+      <View style={styles.numberContainer}>
+        {/* Stroke layers: render number multiple times offset in 8 directions */}
+        {[
+          [-2, -2], [0, -2], [2, -2],
+          [-2,  0],          [2,  0],
+          [-2,  2], [0,  2], [2,  2],
+        ].map(([dx, dy], i) => (
+          <Text
+            key={i}
+            style={[styles.rankNumberStroke, { position: "absolute", bottom: 0, left: dx, marginBottom: dy }]}
+            numberOfLines={1}
+          >
+            {rankStr}
+          </Text>
+        ))}
+        {/* Fill layer — transparent center gives hollow/outlined look */}
+        <Text style={styles.rankNumberFill} numberOfLines={1}>{rankStr}</Text>
+      </View>
+
+      {/* ── Card (overlaps the number on the left) ── */}
       <TouchableOpacity
-        onPress={() => onPress(item)}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
+        onPress={handlePress}
+        onPressIn={handleIn}
+        onPressOut={handleOut}
         activeOpacity={1}
-        style={[styles.trendingCard, { shadowColor: glow }]}
+        style={[styles.card, { shadowColor: glow }]}
       >
         <ImageBackground
           source={{ uri: item.imageUrl }}
-          style={styles.trendingImage}
-          imageStyle={styles.trendingImageStyle}
+          style={styles.cardImage}
+          imageStyle={styles.cardImageStyle}
         >
-          {/* Rank */}
-          <View style={styles.rankBadge}>
-            <LinearGradient
-              colors={[accent, accent + "99"]}
-              style={styles.rankGrad}
-            >
-              <Text style={styles.rankText}>#{index + 1}</Text>
-            </LinearGradient>
-          </View>
-          {/* Bottom */}
-          <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.82)"]}
-            style={styles.trendingOverlay}
-          >
+          <LinearGradient colors={["transparent", "rgba(0,0,0,0.84)"]} style={styles.overlay}>
             {item.isAR && (
-              <View style={[styles.arMini, { borderColor: accent + "80" }]}>
-                <Text style={[styles.arMiniText, { color: accent }]}>AR</Text>
+              <View style={[styles.arBadge, { borderColor: accent + "80" }]}>
+                <Text style={[styles.arText, { color: accent }]}>AR</Text>
               </View>
             )}
-            <Text style={styles.trendingTitle} numberOfLines={2}>
-              {item.title}
-            </Text>
-            <Text style={styles.trendingEra}>{item.era}</Text>
+            <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+            <Text style={styles.cardEra}>{item.era}</Text>
           </LinearGradient>
         </ImageBackground>
       </TouchableOpacity>
     </Animated.View>
   );
-};
+});
 
-const TrendingRow: React.FC<TrendingRowProps> = ({
-  items,
-  theme,
-  onPress,
-  title = "Trending Now",
-}) => {
-  const t = themes[theme];
-  const accent = getAccentColor(theme);
+const TrendingRow: React.FC<TrendingRowProps> = memo(({ items, onPress, title = "Trending Now" }) => {
+  const { theme, themeName } = useTheme();
+  const accent = getAccentColor(themeName);
+
+  const handlePress = useCallback((item: HeritageItem) => onPress(item), [onPress]);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={[styles.dot, { backgroundColor: accent }]} />
-          <Text style={[styles.title, { color: t.text01 }]}>{title}</Text>
+          <Text style={[styles.title, { color: theme.text01 }]}>{title}</Text>
         </View>
-        <TouchableOpacity>
+        <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={[styles.seeAll, { color: accent }]}>See All →</Text>
         </TouchableOpacity>
       </View>
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        decelerationRate="fast"
+        snapToInterval={ITEM_W + 4}
+        snapToAlignment="start"
       >
         {items.map((item, idx) => (
-          <TrendingCard
-            key={item.id}
-            item={item}
-            theme={theme}
-            index={idx}
-            onPress={onPress}
-          />
+          <TrendingCard key={item.id} item={item} index={idx} onPress={handlePress} />
         ))}
       </ScrollView>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 24,
-  },
-  header: {
+  container:     { marginBottom: 24 },
+  header:        { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, marginBottom: 14 },
+  headerLeft:    { flexDirection: "row", alignItems: "center", gap: 8 },
+  dot:           { width: 6, height: 6, borderRadius: 3 },
+  title:         { fontSize: 16, fontFamily: "PlayfairDisplay-Bold", letterSpacing: -0.2 },
+  seeAll:        { fontSize: 11, fontFamily: "SpaceMono-Regular", letterSpacing: 0.5 },
+  scrollContent: { paddingLeft: 20, paddingRight: 8 },
+
+  /* Each row item: number behind, card on top-right */
+  itemContainer: {
+    width: ITEM_W,
+    height: CARD_H,
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    marginBottom: 14,
+    alignItems: "flex-end",   // align to card bottom so number sits at base
+    marginRight: 4,
   },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+
+  /* Large rank number container */
+  numberContainer: {
+    width: NUMBER_W,
+    height: CARD_H,
+    justifyContent: "flex-end",    // pin number to bottom like Netflix
+    alignItems: "flex-start",
+    paddingBottom: 0,
+    zIndex: 0,
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  title: {
-    fontSize: 16,
+  /* Stroke copies — slightly visible outline color */
+  rankNumberStroke: {
+    fontSize: 140,
+    lineHeight: 140,
     fontFamily: "PlayfairDisplay-Bold",
-    letterSpacing: -0.2,
+    color: "rgba(255,255,255,0.22)",    // outline color
+    includeFontPadding: false,
   },
-  seeAll: {
-    fontSize: 11,
-    fontFamily: "SpaceMono-Regular",
-    letterSpacing: 0.5,
+  /* Top fill layer — dark/transparent so outline shows through edges */
+  rankNumberFill: {
+    fontSize: 140,
+    lineHeight: 140,
+    fontFamily: "PlayfairDisplay-Bold",
+    color: "#111",                       // matches dark bg — creates "hollow" look
+    includeFontPadding: false,
   },
-  scroll: {
-    paddingLeft: 20,
-    paddingRight: 8,
-  },
-  trendingCard: {
-    width: TRENDING_CARD_W,
-    height: TRENDING_CARD_H,
+
+  /* Card sits to the right, overlapping number */
+  card: {
+    width: CARD_W,
+    height: CARD_H,
     borderRadius: 20,
     overflow: "hidden",
+    marginLeft: -OVERLAP,   // negative margin pulls card left over the number
+    zIndex: 1,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.45,
+    shadowOpacity: 0.42,
     shadowRadius: 14,
     elevation: 8,
   },
-  trendingImage: {
-    flex: 1,
-    justifyContent: "space-between",
-  },
-  trendingImageStyle: {
-    borderRadius: 20,
-  },
-  rankBadge: {
-    margin: 10,
-    alignSelf: "flex-start",
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-  rankGrad: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  rankText: {
-    fontSize: 11,
-    fontFamily: "SpaceMono-Regular",
-    color: "#fff",
-    letterSpacing: 0.5,
-  },
-  trendingOverlay: {
-    padding: 12,
-    paddingTop: 30,
-  },
-  arMini: {
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginBottom: 6,
-  },
-  arMiniText: {
-    fontSize: 8,
-    fontFamily: "SpaceMono-Regular",
-    letterSpacing: 1.5,
-  },
-  trendingTitle: {
-    fontSize: 12,
-    fontFamily: "PlayfairDisplay-Bold",
-    color: "#ffffff",
-    lineHeight: 16,
-    marginBottom: 3,
-  },
-  trendingEra: {
-    fontSize: 9,
-    fontFamily: "SpaceMono-Regular",
-    color: "rgba(255,255,255,0.55)",
-    letterSpacing: 1,
-  },
+  cardImage:     { flex: 1, justifyContent: "flex-end" },
+  cardImageStyle:{ borderRadius: 20 },
+  overlay:       { padding: 12, paddingTop: 28 },
+  arBadge:       { alignSelf: "flex-start", borderWidth: 1, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 6 },
+  arText:        { fontSize: 8, fontFamily: "SpaceMono-Regular", letterSpacing: 1.5 },
+  cardTitle:     { fontSize: 12, fontFamily: "PlayfairDisplay-Bold", color: "#fff", lineHeight: 16, marginBottom: 3 },
+  cardEra:       { fontSize: 9, fontFamily: "SpaceMono-Regular", color: "rgba(255,255,255,0.55)", letterSpacing: 1 },
 });
 
+TrendingCard.displayName = "TrendingCard";
+TrendingRow.displayName  = "TrendingRow";
 export default TrendingRow;
